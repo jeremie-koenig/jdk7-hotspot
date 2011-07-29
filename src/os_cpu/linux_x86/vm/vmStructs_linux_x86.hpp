@@ -25,6 +25,12 @@
 #ifndef OS_CPU_LINUX_X86_VM_VMSTRUCTS_LINUX_X86_HPP
 #define OS_CPU_LINUX_X86_VM_VMSTRUCTS_LINUX_X86_HPP
 
+#ifdef __linux__
+# define __linux__ONLY(code) code
+#else
+# define __linux__ONLY(code)
+#endif
+
 // These are the OS and CPU-specific fields, types and integer
 // constants required by the Serviceability Agent. This file is
 // referenced by vmStructs.cpp.
@@ -34,7 +40,7 @@
   /******************************/                                                                                                   \
   /* Threads (NOTE: incomplete) */                                                                                                   \
   /******************************/                                                                                                   \
-  nonstatic_field(OSThread,                      _thread_id,                                      pid_t)                             \
+  __linux__ONLY(nonstatic_field(OSThread,        _thread_id,                                      pid_t))                            \
   nonstatic_field(OSThread,                      _pthread_id,                                     pthread_t)                         \
   /* This must be the last entry, and must be present */                                                                             \
   last_entry()
@@ -46,7 +52,7 @@
   /* Posix Thread IDs   */                                                \
   /**********************/                                                \
                                                                           \
-  declare_integer_type(pid_t)                                             \
+  __linux__ONLY(declare_integer_type(pid_t))                              \
   declare_unsigned_integer_type(pthread_t)                                \
                                                                           \
   /* This must be the last entry, and must be present */                  \

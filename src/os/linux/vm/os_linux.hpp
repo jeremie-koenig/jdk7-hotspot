@@ -94,9 +94,11 @@ class Linux {
   static int  get_fpu_control_word();
   static void set_fpu_control_word(int fpu_control);
   static pthread_t main_thread(void)                                { return _main_thread; }
+#ifdef __linux__
   // returns kernel thread id (similar to LWP id on Solaris), which can be
   // used to access /proc
   static pid_t gettid();
+#endif
   static void set_createThread_lock(Mutex* lk)                      { _createThread_lock = lk; }
   static Mutex* createThread_lock(void)                             { return _createThread_lock; }
   static void hotspot_sigmask(Thread* thread);

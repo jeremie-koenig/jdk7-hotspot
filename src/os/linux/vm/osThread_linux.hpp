@@ -39,10 +39,12 @@
 
  private:
 
+#ifdef __linux__
   // _thread_id is kernel thread id (similar to LWP id on Solaris). Each
   // thread has a unique thread_id (LinuxThreads or NPTL). It can be used
   // to access /proc.
   pid_t     _thread_id;
+#endif
 
   // _pthread_id is the pthread id, which is used by library calls
   // (e.g. pthread_kill).
@@ -56,9 +58,15 @@
   sigset_t  caller_sigmask() const       { return _caller_sigmask; }
   void    set_caller_sigmask(sigset_t sigmask)  { _caller_sigmask = sigmask; }
 
+#ifdef __linux__
   pid_t thread_id() const {
     return _thread_id;
   }
+#else
+  pthread_t thread_id() const {
+    return _pthread_id;
+  }
+#endif
 #ifndef PRODUCT
   // Used for debugging, return a unique integer for each thread.
   int thread_identifier() const   { return _thread_id; }
@@ -70,9 +78,11 @@
     return false;
   }
 #endif // ASSERT
+#ifdef __linux__
   void set_thread_id(pid_t id) {
     _thread_id = id;
   }
+#endif
   pthread_t pthread_id() const {
     return _pthread_id;
   }

@@ -115,8 +115,6 @@
 # include <semaphore.h>
 # include <fcntl.h>
 # include <string.h>
-# include <syscall.h>
-# include <sys/sysinfo.h>
 # include <gnu/libc-version.h>
 # include <sys/ipc.h>
 # include <sys/shm.h>
@@ -124,6 +122,10 @@
 # include <stdint.h>
 # include <inttypes.h>
 # include <sys/ioctl.h>
+#ifdef __linux__
+# include <syscall.h>
+# include <sys/sysinfo.h>
+#endif
 
 #define MAX_PATH    (2 * K)
 
@@ -180,11 +182,18 @@ julong os::available_memory() {
 }
 
 julong os::Linux::available_memory() {
+#ifdef __linux__
   // values in struct sysinfo are "unsigned long"
   struct sysinfo si;
   sysinfo(&si);
 
   return (julong)si.freeram * si.mem_unit;
+#elif defined(_SC_AVPHYS_PAGES)
+  // all glibc-based systems and more
+  return (julong) sysconf(_SC_AVPHYS_PAGES) * (julong) sysconf(_SC_PAGESIZE);
+#else
+# error Please implement os::available_memory() for this system.
+#endif
 }
 
 julong os::physical_memory() {
@@ -232,21 +241,6 @@ bool os::have_special_privileges() {
 }
 
 
-#ifndef SYS_gettid
-// i386: 224, ia64: 1105, amd64: 186, sparc 143
-#ifdef __ia64__
-#define SYS_gettid 1105
-#elif __i386__
-#define SYS_gettid 224
-#elif __amd64__
-#define SYS_gettid 186
-#elif __sparc__
-#define SYS_gettid 143
-#else
-#error define gettid for the arch
-#endif
-#endif
-
 // Cpu architecture string
 #if   defined(ZERO)
 static char cpu_arch[] = ZERO_LIBARCH;
@@ -271,6 +265,21 @@ static char cpu_arch[] = "sparc";
 #endif
 
 
+#ifdef __linux__
+# ifndef SYS_gettid
+#  ifdef __ia64__
+#   define SYS_gettid 1105
+#  elif __i386__
+#   define SYS_gettid 224
+#  elif __amd64__
+#   define SYS_gettid 186
+#  elif __sparc__
+#   define SYS_gettid 143
+#  else
+#   error define gettid for the arch
+#  endif
+# endif
+
 // pid_t gettid()
 //
 // Returns the kernel thread id of the currently running thread. Kernel
@@ -288,7 +297,9 @@ pid_t os::Linux::gettid() {
      return (pid_t)rslt;
   }
 }
+#endif //__linux__
 
+#ifdef __linux__
 // Most versions of linux have a bug where the number of processors are
 // determined by looking at the /proc file system.  In a chroot environment,
 // the system call returns 1.  This causes the VM to act as if it is
@@ -297,9 +308,11 @@ static bool unsafe_chroot_detected = false;
 static const char *unstable_chroot_error = "/proc file system not found.\n"
                      "Java may be unstable running multithreaded in a chroot "
                      "environment on Linux when /proc filesystem is not mounted.";
+#endif
 
 void os::Linux::initialize_system_info() {
   set_processor_count(sysconf(_SC_NPROCESSORS_CONF));
+#ifdef __linux__
   if (processor_count() == 1) {
     pid_t pid = os::Linux::gettid();
     char fname[32];
@@ -311,6 +324,7 @@ void os::Linux::initialize_system_info() {
       fclose(fp);
     }
   }
+#endif
   _physical_memory = (julong)sysconf(_SC_PHYS_PAGES) * (julong)sysconf(_SC_PAGESIZE);
   assert(processor_count() > 0, "linux error");
 }
@@ -828,8 +842,10 @@ static void *java_start(Thread *thread) {
     return NULL;
   }
 
+#ifdef __linux__
   // thread_id is kernel thread id (similar to Solaris LWP id)
   osthread->set_thread_id(os::Linux::gettid());
+#endif
 
   if (UseNUMA) {
     int lgrp_id = os::numa_get_group_id();
@@ -999,7 +1015,9 @@ bool os::create_attached_thread(JavaThread* thread) {
   }
 
   // Store pthread info into the OSThread
+#ifdef __linux__
   osthread->set_thread_id(os::Linux::gettid());
+#endif
   osthread->set_pthread_id(::pthread_self());
 
   // initialize floating point control register
@@ -1411,7 +1429,7 @@ void os::Linux::clock_init() {
 
 #ifndef SYS_clock_getres
 
-#if defined(IA32) || defined(AMD64)
+#if defined(__linux__) && (defined(IA32) || defined(AMD64))
 #define SYS_clock_getres IA32_ONLY(266)  AMD64_ONLY(229)
 #define sys_clock_getres(x,y)  ::syscall(SYS_clock_getres, x, y)
 #else
@@ -1986,7 +2004,11 @@ void os::print_dll_info(outputStream *st) {
    st->print_cr("Dynamic libraries:");
 
    char fname[32];
+#ifdef __linux__
    pid_t pid = os::Linux::gettid();
+#else
+   pid_t pid = getpid();
+#endif
 
    jio_snprintf(fname, sizeof(fname), "/proc/%d/maps", pid);
 
@@ -2027,11 +2049,13 @@ void os::print_os_info(outputStream* st) {
   st->print(name.machine);
   st->cr();
 
+#ifdef __linux__
   // Print warning if unsafe chroot environment detected
   if (unsafe_chroot_detected) {
     st->print("WARNING!! ");
     st->print_cr(unstable_chroot_error);
   }
+#endif
 
   // libc, pthread
   st->print("libc:");
@@ -2089,19 +2113,22 @@ void os::print_memory_info(outputStream* st) {
 
   st->print("Memory:");
   st->print(" %dk page", os::vm_page_size()>>10);
-
-  // values in struct sysinfo are "unsigned long"
-  struct sysinfo si;
-  sysinfo(&si);
-
   st->print(", physical " UINT64_FORMAT "k",
             os::physical_memory() >> 10);
   st->print("(" UINT64_FORMAT "k free)",
             os::available_memory() >> 10);
+
+#ifdef __linux__
+  // values in struct sysinfo are "unsigned long"
+  struct sysinfo si;
+  sysinfo(&si);
+
   st->print(", swap " UINT64_FORMAT "k",
             ((jlong)si.totalswap * si.mem_unit) >> 10);
   st->print("(" UINT64_FORMAT "k free)",
             ((jlong)si.freeswap * si.mem_unit) >> 10);
+#endif
+
   st->cr();
 }
 
@@ -3337,13 +3364,19 @@ static int prio_init() {
 }
 
 OSReturn os::set_native_priority(Thread* thread, int newpri) {
+#ifdef __linux__
   if ( !UseThreadPriorities || ThreadPriorityPolicy == 0 ) return OS_OK;
 
   int ret = setpriority(PRIO_PROCESS, thread->osthread()->thread_id(), newpri);
   return (ret == 0) ? OS_OK : OS_ERR;
+#else
+# warning os::set_native_priority has been stubbed
+  return OS_OK;
+#endif
 }
 
 OSReturn os::get_native_priority(const Thread* const thread, int *priority_ptr) {
+#ifdef __linux__
   if ( !UseThreadPriorities || ThreadPriorityPolicy == 0 ) {
     *priority_ptr = java_to_os_priority[NormPriority];
     return OS_OK;
@@ -3352,6 +3385,11 @@ OSReturn os::get_native_priority(const Thread* const thread, int *priority_ptr) 
   errno = 0;
   *priority_ptr = getpriority(PRIO_PROCESS, thread->osthread()->thread_id());
   return (*priority_ptr != -1 || errno == 0 ? OS_OK : OS_ERR);
+#else
+# warning os::get_native_priority has been stubbed
+  *priority_ptr = java_to_os_priority[NormPriority];
+  return OS_OK;
+#endif
 }
 
 // Hint to the underlying OS that a task switch would not be good.
@@ -4033,15 +4071,22 @@ extern void report_error(char* file_name, int line_no, char* title, char* format
 extern bool signal_name(int signo, char* buf, size_t len);
 
 const char* os::exception_name(int exception_code, char* buf, size_t size) {
-  if (0 < exception_code && exception_code <= SIGRTMAX) {
-    // signal
-    if (!signal_name(exception_code, buf, size)) {
-      jio_snprintf(buf, size, "SIG%d", exception_code);
-    }
-    return buf;
-  } else {
+#ifdef _NSIG
+  if (exception_code <= 0 || exception_code >= _NSIG) {
     return NULL;
   }
+#elif defined(SIGRTMAX)
+  if (exception_code <= 0 || exception_code > SIGRTMAX) {
+    return NULL;
+  }
+#else
+# error Can't figure out the number of signals.
+#endif
+
+  if (!signal_name(exception_code, buf, size)) {
+    jio_snprintf(buf, size, "SIG%d", exception_code);
+  }
+  return buf;
 }
 
 // this is called _before_ the most of global arguments have been parsed
@@ -4299,9 +4344,8 @@ ExtendedPC os::get_thread_pc(Thread* thread) {
 
 int os::Linux::safe_cond_timedwait(pthread_cond_t *_cond, pthread_mutex_t *_mutex, const struct timespec *_abstime)
 {
-   if (is_NPTL()) {
-      return pthread_cond_timedwait(_cond, _mutex, _abstime);
-   } else {
+#ifdef __linux__
+   if (!is_NPTL()) {
 #ifndef IA64
       // 6292965: LinuxThreads pthread_cond_timedwait() resets FPU control
       // word back to default 64bit precision if condvar is signaled. Java
@@ -4314,6 +4358,8 @@ int os::Linux::safe_cond_timedwait(pthread_cond_t *_cond, pthread_mutex_t *_mute
 #endif // IA64
       return status;
    }
+#endif
+   return pthread_cond_timedwait(_cond, _mutex, _abstime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4452,6 +4498,12 @@ bool os::dir_is_empty(const char* path) {
 // O_DELETE is used only in j2se/src/share/native/java/util/zip/ZipFile.c
 
 int os::open(const char *path, int oflag, int mode) {
+
+#ifndef __linux__
+  // Some of the code using this assumes that O_RDONLY == 0,
+  // which is true on Linux but not everywhere.
+  if (oflag == 0) oflag = O_RDONLY;
+#endif
 
   if (strlen(path) > MAX_PATH - 1) {
     errno = ENAMETOOLONG;
@@ -4685,6 +4737,7 @@ jlong os::thread_cpu_time(Thread *thread, bool user_sys_cpu_time) {
 //  -1 on error.
 //
 
+#ifdef __linux__
 static jlong slow_thread_cpu_time(Thread *thread, bool user_sys_cpu_time) {
   static bool proc_pid_cpu_avail = true;
   static bool proc_task_unchecked = true;
@@ -4770,6 +4823,12 @@ static jlong slow_thread_cpu_time(Thread *thread, bool user_sys_cpu_time) {
     return (jlong)user_time * (1000000000 / clock_tics_per_sec);
   }
 }
+#else
+// Portable "implementation"
+static jlong slow_thread_cpu_time(Thread *thread, bool user_sys_cpu_time) {
+  return -1;
+}
+#endif
 
 void os::current_thread_cpu_time_info(jvmtiTimerInfo *info_ptr) {
   info_ptr->max_value = ALL_64_BITS;       // will not wrap in less than 64 bits
@@ -5260,6 +5319,7 @@ extern char** environ;
 int os::fork_and_exec(char* cmd) {
   const char * argv[4] = {"sh", "-c", cmd, NULL};
 
+#ifdef __linux__
   // fork() in LinuxThreads/NPTL is not async-safe. It needs to run
   // pthread_atfork handlers and reset pthread library. All we need is a
   // separate process to execve. Make a direct syscall to fork process.
@@ -5267,6 +5327,9 @@ int os::fork_and_exec(char* cmd) {
   // the best...
   pid_t pid = NOT_IA64(syscall(__NR_fork);)
               IA64_ONLY(fork();)
+#else
+  pid_t pid = fork();
+#endif
 
   if (pid < 0) {
     // fork failed
@@ -5275,6 +5338,7 @@ int os::fork_and_exec(char* cmd) {
   } else if (pid == 0) {
     // child process
 
+#ifdef __linux__
     // execve() in LinuxThreads will call pthread_kill_other_threads_np()
     // first to kill every thread on the thread list. Because this list is
     // not reset by fork() (see notes above), execve() will instead kill
@@ -5284,6 +5348,9 @@ int os::fork_and_exec(char* cmd) {
     // above.
     NOT_IA64(syscall(__NR_execve, "/bin/sh", argv, environ);)
     IA64_ONLY(execve("/bin/sh", (char* const*)argv, environ);)
+#else
+    execve("/bin/sh", (char* const*)argv, environ);
+#endif
 
     // execve failed
     _exit(-1);

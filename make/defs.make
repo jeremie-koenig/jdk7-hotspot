@@ -121,15 +121,16 @@ ifeq ($(OS),)
   HOST := $(shell uname -n)
 endif
 
-# If not SunOS and not Linux, assume Windows
-ifneq ($(OS), Linux)
-  ifneq ($(OS), SunOS)
-    OSNAME=windows
-  else
-    OSNAME=solaris
-  endif
-else
+ifeq ($(OS), SunOS)
+  OSNAME=solaris
+endif
+ifeq ($(OS), Linux)
   OSNAME=linux
+endif
+
+# If none of these, assume Windows
+ifeq ($(OSNAME),)
+  OSNAME=windows
 endif
 
 # Determinations of default make arguments and platform specific settings

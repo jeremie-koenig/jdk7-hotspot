@@ -49,7 +49,9 @@
 
 void OSThread::pd_initialize() {
   assert(this != NULL, "check");
+#ifdef __linux__
   _thread_id        = 0;
+#endif
   _pthread_id       = 0;
   _siginfo = NULL;
   _ucontext = NULL;

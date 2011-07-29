@@ -169,7 +169,9 @@ struct siglabel siglabels[] = {
   "WINCH",      SIGWINCH,       /* Window size change (4.3 BSD, Sun).  */
   "POLL",       SIGPOLL,        /* Pollable event occurred (System V).  */
   "IO",         SIGIO,          /* I/O now possible (4.2 BSD).  */
+#ifdef SIGPWR
   "PWR",        SIGPWR,         /* Power failure restart (System V).  */
+#endif
 #ifdef SIGSYS
   "SYS",        SIGSYS          /* Bad system call. Only on some Linuxen! */
 #endif

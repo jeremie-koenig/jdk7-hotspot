@@ -41,10 +41,17 @@
 #include "version_comp.h"
 #endif
 
-#ifdef __linux__
+#ifndef __solaris__
 #include <pthread.h>
 #else
 #include <thread.h>
+#endif
+
+#ifndef MAXPATHLEN
+# define MAXPATHLEN 4096
+#endif
+#ifndef PATH_MAX
+# define PATH_MAX MAXPATHLEN
 #endif
 
 #define JVM_DLL "libjvm.so"
@@ -89,7 +96,7 @@ extern char **environ;
  *      A collection of useful strings. One should think of these as #define
  *      entries, but actual strings can be more efficient (with many compilers).
  */
-#ifdef __linux__
+#ifndef __solaris__
 static const char *system_dir   = "/usr/java";
 static const char *user_dir     = "/java";
 #else /* Solaris */
@@ -1821,7 +1828,7 @@ jlong_format_specifier() {
 int
 ContinueInNewThread(int (JNICALL *continuation)(void *), jlong stack_size, void * args) {
     int rslt;
-#ifdef __linux__
+#ifndef __solaris__
     pthread_t tid;
     pthread_attr_t attr;
     pthread_attr_init(&attr);

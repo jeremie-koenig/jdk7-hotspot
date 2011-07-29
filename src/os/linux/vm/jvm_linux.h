@@ -46,6 +46,19 @@
 #include <sys/param.h>          /* For MAXPATHLEN */
 #include <unistd.h>             /* For F_OK, R_OK, W_OK */
 
+/* MAXPATHLEN and PATH_MAX are optional. */
+#ifndef MAXPATHLEN
+# define MAXPATHLEN 4096
+#endif
+#ifndef PATH_MAX
+# define PATH_MAX MAXPATHLEN
+#endif
+
+/* MAP_NORESERVE is Linux-specific. */
+#ifndef MAP_NORESERVE
+# define MAP_NORESERVE 0
+#endif
+
 #define JNI_ONLOAD_SYMBOLS      {"JNI_OnLoad"}
 #define JNI_ONUNLOAD_SYMBOLS    {"JNI_OnUnload"}
 #define JVM_ONLOAD_SYMBOLS      {"JVM_OnLoad"}

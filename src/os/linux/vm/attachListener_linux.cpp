@@ -55,6 +55,23 @@
 //    obtain the credentials of client. We check that the effective uid
 //    of the client matches this process.
 
+// Linux (SO_PEERCRED) and FreeBSD (LOCAL_PEERCRED) have very similar
+// interfaces for this but incompatible names, so we define macros for each
+// system which are used in dequeue() below. For systems which don't have
+// either, you may want to disable the check (#warning below, but make sure
+// file modes are enough to prevent unwanted connections).
+#ifdef SO_PEERCRED
+# define UCRED_OPTION SO_PEERCRED
+# define UCRED_T struct ucred
+# define UCRED_UID uid
+# define UCRED_GID gid
+#elif 0
+# warning SO_PEERCRED not available, authentication will rely on file mode
+#else
+# error SO_PEERCRED not available, please implement checks for your system
+#endif
+
+
 // forward reference
 class LinuxAttachOperation;
 
@@ -335,11 +352,12 @@ LinuxAttachOperation* LinuxAttachListener::dequeue() {
       return NULL;      // log a warning?
     }
 
+#ifdef UCRED_OPTION // (see above)
     // get the credentials of the peer and check the effective uid/guid
     // - check with jeff on this.
-    struct ucred cred_info;
+    UCRED_T cred_info;
     socklen_t optlen = sizeof(cred_info);
-    if (::getsockopt(s, SOL_SOCKET, SO_PEERCRED, (void*)&cred_info, &optlen) == -1) {
+    if (::getsockopt(s, SOL_SOCKET, UCRED_OPTION, (void*)&cred_info, &optlen) == -1) {
       int res;
       RESTARTABLE(::close(s), res);
       continue;
@@ -347,11 +365,12 @@ LinuxAttachOperation* LinuxAttachListener::dequeue() {
     uid_t euid = geteuid();
     gid_t egid = getegid();
 
-    if (cred_info.uid != euid || cred_info.gid != egid) {
+    if (cred_info.UCRED_UID != euid || cred_info.UCRED_GID != egid) {
       int res;
       RESTARTABLE(::close(s), res);
       continue;
     }
+#endif
 
     // peer credential look okay so we read the request
     LinuxAttachOperation* op = read_request(s);
