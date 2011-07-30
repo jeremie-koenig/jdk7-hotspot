@@ -35,6 +35,10 @@
 #include <sys/un.h>
 #include <sys/stat.h>
 
+#if defined(__FreeBSD_kernel__)
+# include <sys/ucred.h>
+#endif
+
 #ifndef UNIX_PATH_MAX
 #define UNIX_PATH_MAX   sizeof(((struct sockaddr_un *)0)->sun_path)
 #endif
@@ -65,6 +69,11 @@
 # define UCRED_T struct ucred
 # define UCRED_UID uid
 # define UCRED_GID gid
+#elif defined(LOCAL_PEERCRED)
+# define UCRED_OPTION LOCAL_PEERCRED
+# define UCRED_T struct xucred
+# define UCRED_UID cr_uid
+# define UCRED_GID cr_gid
 #elif defined(__GNU__)
 # warning SO_PEERCRED not available, authentication will rely on file mode
 #else

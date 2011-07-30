@@ -126,8 +126,16 @@
 # include <syscall.h>
 # include <sys/sysinfo.h>
 #endif
+#ifdef __FreeBSD_kernel__
+# include <sys/param.h>
+# include <sys/sysctl.h>
+#endif
 
 #define MAX_PATH    (2 * K)
+
+#ifndef ETIME
+# define ETIME ETIMEDOUT
+#endif
 
 // for timer info max values which include all bits
 #define ALL_64_BITS CONST64(0xFFFFFFFFFFFFFFFF)
@@ -188,6 +196,15 @@ julong os::Linux::available_memory() {
   sysinfo(&si);
 
   return (julong)si.freeram * si.mem_unit;
+#elif defined(__FreeBSD_kernel__)
+  int mib[2] = {CTL_HW, HW_USERMEM}, mem;
+  size_t len;
+  len = sizeof(mem);
+  if (sysctl(mib, 2, &mem, &len, NULL, 0) == 0) {
+    return (julong) mem;
+  } else {
+    return 0;
+  }
 #elif defined(_SC_AVPHYS_PAGES)
   // all glibc-based systems and more
   return (julong) sysconf(_SC_AVPHYS_PAGES) * (julong) sysconf(_SC_PAGESIZE);

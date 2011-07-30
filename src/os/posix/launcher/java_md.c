@@ -433,7 +433,7 @@ CreateExecutionEnvironment(int *_argcp,
       runpath = getenv("LD_LIBRARY_PATH");
 #endif /* __sun */
 
-#ifdef __linux
+#if defined(__linux__) || defined(__GLIBC__)
       /*
        * On linux, if a binary is running as sgid or suid, glibc sets
        * LD_LIBRARY_PATH to the empty string for security purposes.  (In
@@ -799,7 +799,7 @@ error:
 jboolean
 GetApplicationHome(char *buf, jint bufsize)
 {
-#if defined(__linux__) || defined(__GNU__)
+#if defined(__linux__) || defined(__GLIBC__)
     char *execname = GetExecname();
     if (execname) {
         strncpy(buf, execname, bufsize-1);
@@ -968,7 +968,7 @@ SetExecname(char **argv)
             }
         }
     }
-#elif defined(__linux__)
+#elif defined(__linux__) || defined(__FreeBSD_kernel__)
     {
         const char* self = "/proc/self/exe";
         char buf[PATH_MAX+1];
