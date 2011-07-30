@@ -792,7 +792,9 @@ void os::print_context(outputStream *st, void *context) {
   st->cr();
   st->print(  "EIP=" INTPTR_FORMAT, uc->uc_mcontext.gregs[REG_EIP]);
   st->print(", EFLAGS=" INTPTR_FORMAT, uc->uc_mcontext.gregs[REG_EFL]);
+# ifdef __linux__
   st->print(", CR2=" INTPTR_FORMAT, uc->uc_mcontext.cr2);
+# endif
 #endif // AMD64
   st->cr();
   st->cr();

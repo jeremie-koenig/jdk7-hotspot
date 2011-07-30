@@ -128,6 +128,12 @@ ifeq ($(OS), Linux)
   OSNAME=linux
 endif
 
+# Extend the meaning of "linux"
+ifeq ($(OS), GNU)
+  OSNAME=linux
+  DISABLE_HOTSPOT_OS_VERSION_CHECK=absolutely
+endif
+
 # If none of these, assume Windows
 ifeq ($(OSNAME),)
   OSNAME=windows

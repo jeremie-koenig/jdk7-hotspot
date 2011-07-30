@@ -799,7 +799,7 @@ error:
 jboolean
 GetApplicationHome(char *buf, jint bufsize)
 {
-#ifdef __linux__
+#if defined(__linux__) || defined(__GNU__)
     char *execname = GetExecname();
     if (execname) {
         strncpy(buf, execname, bufsize-1);

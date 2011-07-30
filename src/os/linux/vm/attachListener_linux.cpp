@@ -65,7 +65,7 @@
 # define UCRED_T struct ucred
 # define UCRED_UID uid
 # define UCRED_GID gid
-#elif 0
+#elif defined(__GNU__)
 # warning SO_PEERCRED not available, authentication will rely on file mode
 #else
 # error SO_PEERCRED not available, please implement checks for your system

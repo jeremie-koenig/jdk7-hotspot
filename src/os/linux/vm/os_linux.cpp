@@ -1327,8 +1327,13 @@ void os::Linux::capture_initial_stack(size_t max_size) {
     // thread stack grows on demand, its real bottom is high - RLIMIT_STACK.)
     stack_top = (uintptr_t)high;
   } else {
+// NB: we need to inhibit the warning on Hurd, because not having
+// /proc/self/maps is expected, and the message breaks the build
+// (it finds its way into template-expanded .java files)
+#ifndef __GNU__
     // failed, likely because /proc/self/maps does not exist
     warning("Can't detect initial thread stack location - find_vma failed");
+#endif
     // best effort: stack_start is normally within a few pages below the real
     // stack top, use it as stack top, and reduce stack size so we won't put
     // guard page outside stack.
@@ -4489,8 +4494,13 @@ bool os::dir_is_empty(const char* path) {
 // This code originates from JDK's sysOpen and open64_w
 // from src/solaris/hpi/src/system_md.c
 
+/* Other definition in jdk/src/solaris/javavm/export/jvm_md.h */
 #ifndef O_DELETE
-#define O_DELETE 0x10000
+# ifdef __GNU__
+#  define O_DELETE 0x40000000   /* 0x10000 is O_TRUNC on Hurd. */
+# else
+#  define O_DELETE 0x10000
+# endif
 #endif
 
 // Open a file. Unlink the file immediately after open returns
