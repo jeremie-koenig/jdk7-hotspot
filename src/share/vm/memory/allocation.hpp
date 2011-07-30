@@ -214,9 +214,11 @@ protected:
   void signal_out_of_memory(size_t request, const char* whence) const;
 
   void check_for_overflow(size_t request, const char* whence) const {
+#ifndef __FreeBSD_kernel__ // FIXME
     if (UINTPTR_MAX - request < (uintptr_t)_hwm) {
       signal_out_of_memory(request, whence);
     }
+#endif
  }
 
  public:

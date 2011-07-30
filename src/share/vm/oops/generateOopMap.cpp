@@ -970,11 +970,13 @@ void GenerateOopMap::init_basic_blocks() {
   // The product of bbNo and _state_len can get large if there are lots of
   // basic blocks and stack/locals/monitors.  Need to check to make sure
   // we don't overflow the capacity of a pointer.
+#ifndef __FreeBSD_kernel__ // FIXME
   if ((unsigned)bbNo > UINTPTR_MAX / sizeof(CellTypeState) / _state_len) {
     report_error("The amount of memory required to analyze this method "
                  "exceeds addressable range");
     return;
   }
+#endif
 
   CellTypeState *basicBlockState =
       NEW_RESOURCE_ARRAY(CellTypeState, bbNo * _state_len);

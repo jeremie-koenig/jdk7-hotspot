@@ -81,19 +81,39 @@
 # include <ucontext.h>
 # include <fpu_control.h>
 
-#ifdef AMD64
-#define REG_SP REG_RSP
-#define REG_PC REG_RIP
-#define REG_FP REG_RBP
-#define SPELL_REG_SP "rsp"
-#define SPELL_REG_FP "rbp"
+#if defined(__linux__) || defined(__GNU__)
+# define context_trapno uc_mcontext.gregs[REG_TRAPNO]
+# ifdef AMD64
+#  define context_sp uc_mcontext.gregs[REG_RSP]
+#  define context_pc uc_mcontext.gregs[REG_RIP]
+#  define context_fp uc_mcontext.gregs[REG_RBP]
+# else
+#  define context_sp uc_mcontext.gregs[REG_UESP]
+#  define context_pc uc_mcontext.gregs[REG_EIP]
+#  define context_fp uc_mcontext.gregs[REG_EBP]
+# endif
+#elif defined(__FreeBSD_kernel__)
+# define context_trapno uc_mcontext.mc_trapno
+# ifdef AMD64
+#  define context_pc uc_mcontext.mc_rip
+#  define context_sp uc_mcontext.mc_rsp
+#  define context_fp uc_mcontext.mc_rbp
+# else
+#  define context_pc uc_mcontext.mc_eip
+#  define context_sp uc_mcontext.mc_esp
+#  define context_fp uc_mcontext.mc_ebp
+# endif
 #else
-#define REG_SP REG_UESP
-#define REG_PC REG_EIP
-#define REG_FP REG_EBP
-#define SPELL_REG_SP "esp"
-#define SPELL_REG_FP "ebp"
-#endif // AMD64
+# error The layout of ucontext_t is unknown for this system
+#endif
+
+#ifdef AMD64
+# define SPELL_REG_SP "rsp"
+# define SPELL_REG_FP "rbp"
+#else
+# define SPELL_REG_SP "esp"
+# define SPELL_REG_FP "ebp"
+#endif
 
 address os::current_stack_pointer() {
 #ifdef SPARC_WORKS
@@ -119,15 +139,15 @@ void os::initialize_thread() {
 }
 
 address os::Linux::ucontext_get_pc(ucontext_t * uc) {
-  return (address)uc->uc_mcontext.gregs[REG_PC];
+  return (address)uc->context_pc;
 }
 
 intptr_t* os::Linux::ucontext_get_sp(ucontext_t * uc) {
-  return (intptr_t*)uc->uc_mcontext.gregs[REG_SP];
+  return (intptr_t*)uc->context_sp;
 }
 
 intptr_t* os::Linux::ucontext_get_fp(ucontext_t * uc) {
-  return (intptr_t*)uc->uc_mcontext.gregs[REG_FP];
+  return (intptr_t*)uc->context_fp;
 }
 
 // For Forte Analyzer AsyncGetCallTrace profiling support - thread
@@ -279,12 +299,12 @@ JVM_handle_linux_signal(int sig,
     pc = (address) os::Linux::ucontext_get_pc(uc);
 
     if (pc == (address) Fetch32PFI) {
-       uc->uc_mcontext.gregs[REG_PC] = intptr_t(Fetch32Resume) ;
+       uc->context_pc = intptr_t(Fetch32Resume) ;
        return 1 ;
     }
 #ifdef AMD64
     if (pc == (address) FetchNPFI) {
-       uc->uc_mcontext.gregs[REG_PC] = intptr_t (FetchNResume) ;
+       uc->context_pc = intptr_t (FetchNResume) ;
        return 1 ;
     }
 #endif // AMD64
@@ -430,7 +450,7 @@ JVM_handle_linux_signal(int sig,
   // Furthermore, a false-positive should be harmless.
   if (UnguardOnExecutionViolation > 0 &&
       (sig == SIGSEGV || sig == SIGBUS) &&
-      uc->uc_mcontext.gregs[REG_TRAPNO] == trap_page_fault) {
+      uc->context_trapno == trap_page_fault) {
     int page_size = os::vm_page_size();
     address addr = (address) info->si_addr;
     address pc = os::Linux::ucontext_get_pc(uc);
